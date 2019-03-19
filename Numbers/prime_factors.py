@@ -19,14 +19,16 @@ def generate_primes(n):
         # immediately yield 2 as prime
         if num == 2:
             yield num
+            continue
         # check if num is an even number, which is definitely not prime
         elif num != 2 and num % 2 == 0:
             is_prime = False
         else:
             # Check if num is divisible by all odd numbers less than its square root to find out if it's a prime number
-            for i in range(3, floor(num ** 0.5), 2):
+            for i in range(3, floor(num / 2), 2):
                 if num % i == 0:
                     is_prime = False
+                    break
         if is_prime:
             yield num
 
@@ -39,6 +41,7 @@ def find_prime_factors(number):
 
     '''
     for prime_number in generate_primes(number):
+        print(prime_number)
         # Find prime numbers that are factors of given number
         while number % prime_number == 0:
             # Continue dividing number by current prime number until no longer divisible
