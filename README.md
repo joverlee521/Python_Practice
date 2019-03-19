@@ -1,2 +1,2 @@
-# Python_Practice
+# Python Practice
 Algorithm/practice problems in Python
