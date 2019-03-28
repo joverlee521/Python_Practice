@@ -6,12 +6,14 @@
 
 # We do not know the "ideal" motif, so we find k-mers and score them depending on how similar they are to each other
 # Construct large numbers of motif matrices and find collection that minimizes motif score, i.e. the most "conserved" motif matrix
-def count_motif_nuc(motifs):
+def count_motif_nuc(motifs, pseudo = False):
     '''
-    Calculates the count of each nucleotide at each index of the motifs
+    Calculates the count of each nucleotide at each index of the motifs,
+    include pseudo = True if want to use pseudocounts in calculation
 
     INPUT:
         motifs(lst): a list of strings that are potential motifs of the same length
+        pseudo(bool): True = include pseudocounts in calculation
     
     OUTPUT:
         count(dict):
@@ -21,7 +23,11 @@ def count_motif_nuc(motifs):
     count = {}
     # Setting up the key value pairs in count, so each key has a list of 0's with the length of the motifs
     for char in "ATGC":
-        count[char] = [0] * len(motifs[0])
+        init = 0
+        # If pseudo = True, initiate with 1 to add pseudocount to the final count
+        if pseudo:
+            init = 1
+        count[char] = [init] * len(motifs[0])
     # Loop through all nucleotides of all motifs and add 1 to count for corresponding nucleotide
     for i in range(len(motifs)):
         for j in range(len(motifs[0])):
@@ -30,21 +36,26 @@ def count_motif_nuc(motifs):
 
 # To get a profile motif, divide all elements in count by length of motifs matrix
 # Note that the elements of any column in the profile matrix sum to 1
-def profile_matrix(motifs):
+def profile_matrix(motifs, pseudo = False):
     '''
-    Finds the profile motif of the motifs matrix
+    Finds the profile motif of the motifs matrix,
+    include pseudo = True if want to use pseudocounts in profile
 
     INPUT:
         motifs(lst): a list of strings that are potential motifs of the same length
+        pseduo(bool): True = include pseudocounts in profile
     
     OUTPUT:
         profile(dict):
             key = nucleotides("A", "T", "C", "G")
             value = list of ratios of nucleotide at each index of motif
     '''
-    l = len(motifs)
-    profile = count_motif_nuc(motifs)
+    profile = count_motif_nuc(motifs, pseudo)
     for key, value in profile.items():
+        l = len(motifs)
+        # If including pseudocount, add 4 to divisor to account for the pseudocounts in the total
+        if pseudo:
+            l += 4
         profile[key] = [num/l for num in value]
     return profile
 
@@ -132,14 +143,16 @@ def profile_most_probable(text, k, profile):
             kmer = subtext
     return kmer
 
-def greedy_motif_search(dna, k, t):
+def greedy_motif_search(dna, k, t, pseudo = False):
     '''
-    Search list of DNA strings to find the best motif matrix of kmers
+    Search list of DNA strings to find the best motif matrix of kmers,
+    include pseudo = True if want to include pseudocount for search
 
     INPUT:
         dna(lst): list of DNA strings
         k(int): length of motifs to be found within DNA
         t(int): the length of the dna list
+        pseudo(bool): True = include pseudocounts during search
     
     OUTPUT:
         best_motifs(lst): list of kmer strings from each DNA string that has the best motif matrix score
@@ -157,7 +170,7 @@ def greedy_motif_search(dna, k, t):
         # This loops through the remaining DNA strings of the list, starting at 1
         for j in range(1, t):
             # Create a profile based on current motifs in the matrix
-            profile = profile_matrix(motifs)
+            profile = profile_matrix(motifs, pseudo)
             # In the current DNA string, find the most probable kmer based on the matrix profile and add it to the motif matrix
             motifs.append(profile_most_probable(dna[j], k, profile))
         # After constructing the motif matrix from all strings of DNA, determine if it has a better score than the current best matrix
@@ -165,3 +178,10 @@ def greedy_motif_search(dna, k, t):
         if motifs_matrix_score(motifs) < motifs_matrix_score(best_motifs):
             best_motifs = motifs
     return best_motifs
+
+Dna = ["GCGCCCCGCCCGGACAGCCATGCGCTAACCCTGGCTTCGATGGCGCCGGCTCAGTTAGGGCCGGAAGTCCCCAATGTGGCAGACCTTTCGCCCCTGGCGGACGAATGACCCCAGTGGCCGGGACTTCAGGCCCTATCGGAGGGCTCCGGCGCGGTGGTCGGATTTGTCTGTGGAGGTTACACCCCAATCGCAAGGATGCATTATGACCAGCGAGCTGAGCCTGGTCGCCACTGGAAAGGGGAGCAACATC", "CCGATCGGCATCACTATCGGTCCTGCGGCCGCCCATAGCGCTATATCCGGCTGGTGAAATCAATTGACAACCTTCGACTTTGAGGTGGCCTACGGCGAGGACAAGCCAGGCAAGCCAGCTGCCTCAACGCGCGCCAGTACGGGTCCATCGACCCGCGGCCCACGGGTCAAACGACCCTAGTGTTCGCTACGACGTGGTCGTACCTTCGGCAGCAGATCAGCAATAGCACCCCGACTCGAGGAGGATCCCG", "ACCGTCGATGTGCCCGGTCGCGCCGCGTCCACCTCGGTCATCGACCCCACGATGAGGACGCCATCGGCCGCGACCAAGCCCCGTGAAACTCTGACGGCGTGCTGGCCGGGCTGCGGCACCTGATCACCTTAGGGCACTTGGGCCACCACAACGGGCCGCCGGTCTCGACAGTGGCCACCACCACACAGGTGACTTCCGGCGGGACGTAAGTCCCTAACGCGTCGTTCCGCACGCGGTTAGCTTTGCTGCC", "GGGTCAGGTATATTTATCGCACACTTGGGCACATGACACACAAGCGCCAGAATCCCGGACCGAACCGAGCACCGTGGGTGGGCAGCCTCCATACAGCGATGACCTGATCGATCATCGGCCAGGGCGCCGGGCTTCCAACCGTGGCCGTCTCAGTACCCAGCCTCATTGACCCTTCGACGCATCCACTGCGCGTAAGTCGGCTCAACCCTTTCAAACCGCTGGATTACCGACCGCAGAAAGGGGGCAGGAC", "GTAGGTCAAACCGGGTGTACATACCCGCTCAATCGCCCAGCACTTCGGGCAGATCACCGGGTTTCCCCGGTATCACCAATACTGCCACCAAACACAGCAGGCGGGAAGGGGCGAAAGTCCCTTATCCGACAATAAAACTTCGCTTGTTCGACGCCCGGTTCACCCGATATGCACGGCGCCCAGCCATTCGTGACCGACGTCCCCAGCCCCAAGGCCGAACGACCCTAGGAGCCACGAGCAATTCACAGCG", "CCGCTGGCGACGCTGTTCGCCGGCAGCGTGCGTGACGACTTCGAGCTGCCCGACTACACCTGGTGACCACCGCCGACGGGCACCTCTCCGCCAGGTAGGCACGGTTTGTCGCCGGCAATGTGACCTTTGGGCGCGGTCTTGAGGACCTTCGGCCCCACCCACGAGGCCGCCGCCGGCCGATCGTATGACGTGCAATGTACGCCATAGGGTGCGTGTTACGGCGATTACCTGAAGGCGGCGGTGGTCCGGA", "GGCCAACTGCACCGCGCTCTTGATGACATCGGTGGTCACCATGGTGTCCGGCATGATCAACCTCCGCTGTTCGATATCACCCCGATCTTTCTGAACGGCGGTTGGCAGACAACAGGGTCAATGGTCCCCAAGTGGATCACCGACGGGCGCGGACAAATGGCCCGCGCTTCGGGGACTTCTGTCCCTAGCCCTGGCCACGATGGGCTGGTCGGATCAAAGGCATCCGTTTCCATCGATTAGGAGGCATCAA", "GTACATGTCCAGAGCGAGCCTCAGCTTCTGCGCAGCGACGGAAACTGCCACACTCAAAGCCTACTGGGCGCACGTGTGGCAACGAGTCGATCCACACGAAATGCCGCCGTTGGGCCGCGGACTAGCCGAATTTTCCGGGTGGTGACACAGCCCACATTTGGCATGGGACTTTCGGCCCTGTCCGCGTCCGTGTCGGCCAGACAAGCTTTGGGCATTGGCCACAATCGGGCCACAATCGAAAGCCGAGCAG", "GGCAGCTGTCGGCAACTGTAAGCCATTTCTGGGACTTTGCTGTGAAAAGCTGGGCGATGGTTGTGGACCTGGACGAGCCACCCGTGCGATAGGTGAGATTCATTCTCGCCCTGACGGGTTGCGTCTGTCATCGGTCGATAAGGACTAACGGCCCTCAGGTGGGGACCAACGCCCCTGGGAGATAGCGGTCCCCGCCAGTAACGTACCGCTGAACCGACGGGATGTATCCGCCCCAGCGAAGGAGACGGCG", "TCAGCACCATGACCGCCTGGCCACCAATCGCCCGTAACAAGCGGGACGTCCGCGACGACGCGTGCGCTAGCGCCGTGGCGGTGACAACGACCAGATATGGTCCGAGCACGCGGGCGAACCTCGTGTTCTGGCCTCGGCCAGTTGTGTAGAGCTCATCGCTGTCATCGAGCGATATCCGACCACTGATCCAAGTCGGGGGCTCTGGGGACCGAAGTCCCCGGGCTCGGAGCTATCGGACCTCACGATCACC"]
+t = 10
+k = 15
+matrix = greedy_motif_search(Dna, k, t, True)
+print(matrix)
+print(motifs_matrix_score(matrix))
