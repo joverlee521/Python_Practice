@@ -179,9 +179,172 @@ def greedy_motif_search(dna, k, t, pseudo = False):
             best_motifs = motifs
     return best_motifs
 
+# ------------------------------------- RANDOMIZED MOTIF SEARCH ------------------------------------- 
+
+def motif_search(dna, profile):
+    '''
+    Search for best motif matrix for DNA when given a motif profile
+
+    INPUT:
+        dna(lst): list of DNA strings
+        profile(dict):
+            key = nucleotides("A", "T", "C", "G")
+            value = list of ratios of nucleotide at each index of motif
+    
+    OUTPUT:
+        motifs(lst): list of motifs from each DNA string that has the best motif matrix score
+    '''
+    motifs = []
+    for i in range(len(dna)):
+        motifs.append(profile_most_probable(dna[i], len(profile["A"]), profile))
+    return motifs
+
+from random import randint
+def random_motifs(dna, k, t):
+    '''
+    Generate a random motif matrix of kmers from the given DNA list
+    
+    INPUT:
+        dna(lst): list of DNA strings
+        k(int): length of motifs to find
+        t(int): length of dna list
+    
+    OUTPUT:
+        motifs(lst): a random list of motifs from each DNA string
+    '''
+    motifs = []
+    for i in range(t):
+        start = randint(0, len(dna[0])-k)
+        motifs.append(dna[i][start:start+k])
+    return motifs
+
+def randomized_motif_search(dna, k, t):
+    '''
+    Find the best motif matrix by starting with a completely random matrix.
+    Continue to generate new matrices from the profile until the matrix score stops improving.
+    Returns the motif matrix with the best score. 
+
+    INPUT:
+        dna(lst): list of DNA strings
+        k(int): length of motifs to find
+        t(int): length of dna list
+    
+    OUTPUT:
+        best_motifs(lst): the best motif matrix generated from random search
+    '''
+    motifs = random_motifs(dna, k, t)
+    best_motifs = motifs
+    while True:
+        profile = profile_matrix(motifs, True)
+        motifs = motif_search(dna, profile)
+        if motifs_matrix_score(motifs) < motifs_matrix_score(best_motifs):
+            best_motifs = motifs
+        else:
+            return best_motifs
+
+#  ------------------------------------- GIBBS SAMPLING MOTIF SEARCH  ------------------------------------- 
+
+def normalize(probabilities):
+    '''
+    Rescale a collection of probabilities such that the probabilities sum to 1
+
+    INPUT & OUTPUT:
+        probabilities(dict):
+            key = k-mers
+            value = floats representing their probabilities
+    '''
+    sum = 0
+    for val in probabilities.values():
+        sum += val
+    for key, val in probabilities.items():
+        probabilities[key] = val / sum
+    return probabilities
+
+from random import uniform
+def weighted_die(probabilities):
+    '''
+    Choose a single kmer from the probabilities dict based on each kmer's normalized probability, 
+    using a random float generator.
+
+    INPUT:
+        probabilities(dict):
+            key = k-mers
+            value = floats representing their probabilities
+    
+    OUTPUT:
+        kmer(str): the kmer that was choosen based on random float and kmer probabilities
+    '''
+    kmer = ""
+    random_float = uniform(0, 1)
+    for key in probabilities.keys():
+        random_float -= probabilities[key]
+        if random_float <= 0:
+            kmer = key
+            return kmer
+
+def profile_generated_kmer(text, profile, k):
+    '''
+    Randomly chooses a kmer from text based on the given profile
+
+    INPUT:
+        text(str): DNA string to be evaluated
+        profile(dict):
+            key = nucleotides("A", "T", "C", "G")
+            value = list of ratios of nucleotide at each index of motif
+        k(int): the length of the kmer to be returned
+    
+    OUTPUT:
+        kmer(str): random substring with text found based on profile
+    '''
+    probabilities = {}
+    kmer = ""
+    for i in range(len(text) - k + 1):
+        subtext = text[i:i+k]
+        subtext_probability = profile_probability(subtext, profile)
+        probabilities[subtext] = subtext_probability
+    probabilities = normalize(probabilities)
+    kmer = weighted_die(probabilities)
+    return kmer
+
+def gibbs_sampler(dna, k, t, n):
+    best_motifs = [] 
+    motifs = random_motifs(Dna, k, t)
+    best_motifs = motifs.copy()
+    for _ in range(1, n):
+        i = randint(0, t-1)
+        profile = profile_matrix(motifs[:i] + motifs[i+1:], True)
+        motifs[i] = profile_generated_kmer(dna[i], profile, k)
+        if motifs_matrix_score(motifs) < motifs_matrix_score(best_motifs):
+            best_motifs = motifs
+    return best_motifs
+
+
 Dna = ["GCGCCCCGCCCGGACAGCCATGCGCTAACCCTGGCTTCGATGGCGCCGGCTCAGTTAGGGCCGGAAGTCCCCAATGTGGCAGACCTTTCGCCCCTGGCGGACGAATGACCCCAGTGGCCGGGACTTCAGGCCCTATCGGAGGGCTCCGGCGCGGTGGTCGGATTTGTCTGTGGAGGTTACACCCCAATCGCAAGGATGCATTATGACCAGCGAGCTGAGCCTGGTCGCCACTGGAAAGGGGAGCAACATC", "CCGATCGGCATCACTATCGGTCCTGCGGCCGCCCATAGCGCTATATCCGGCTGGTGAAATCAATTGACAACCTTCGACTTTGAGGTGGCCTACGGCGAGGACAAGCCAGGCAAGCCAGCTGCCTCAACGCGCGCCAGTACGGGTCCATCGACCCGCGGCCCACGGGTCAAACGACCCTAGTGTTCGCTACGACGTGGTCGTACCTTCGGCAGCAGATCAGCAATAGCACCCCGACTCGAGGAGGATCCCG", "ACCGTCGATGTGCCCGGTCGCGCCGCGTCCACCTCGGTCATCGACCCCACGATGAGGACGCCATCGGCCGCGACCAAGCCCCGTGAAACTCTGACGGCGTGCTGGCCGGGCTGCGGCACCTGATCACCTTAGGGCACTTGGGCCACCACAACGGGCCGCCGGTCTCGACAGTGGCCACCACCACACAGGTGACTTCCGGCGGGACGTAAGTCCCTAACGCGTCGTTCCGCACGCGGTTAGCTTTGCTGCC", "GGGTCAGGTATATTTATCGCACACTTGGGCACATGACACACAAGCGCCAGAATCCCGGACCGAACCGAGCACCGTGGGTGGGCAGCCTCCATACAGCGATGACCTGATCGATCATCGGCCAGGGCGCCGGGCTTCCAACCGTGGCCGTCTCAGTACCCAGCCTCATTGACCCTTCGACGCATCCACTGCGCGTAAGTCGGCTCAACCCTTTCAAACCGCTGGATTACCGACCGCAGAAAGGGGGCAGGAC", "GTAGGTCAAACCGGGTGTACATACCCGCTCAATCGCCCAGCACTTCGGGCAGATCACCGGGTTTCCCCGGTATCACCAATACTGCCACCAAACACAGCAGGCGGGAAGGGGCGAAAGTCCCTTATCCGACAATAAAACTTCGCTTGTTCGACGCCCGGTTCACCCGATATGCACGGCGCCCAGCCATTCGTGACCGACGTCCCCAGCCCCAAGGCCGAACGACCCTAGGAGCCACGAGCAATTCACAGCG", "CCGCTGGCGACGCTGTTCGCCGGCAGCGTGCGTGACGACTTCGAGCTGCCCGACTACACCTGGTGACCACCGCCGACGGGCACCTCTCCGCCAGGTAGGCACGGTTTGTCGCCGGCAATGTGACCTTTGGGCGCGGTCTTGAGGACCTTCGGCCCCACCCACGAGGCCGCCGCCGGCCGATCGTATGACGTGCAATGTACGCCATAGGGTGCGTGTTACGGCGATTACCTGAAGGCGGCGGTGGTCCGGA", "GGCCAACTGCACCGCGCTCTTGATGACATCGGTGGTCACCATGGTGTCCGGCATGATCAACCTCCGCTGTTCGATATCACCCCGATCTTTCTGAACGGCGGTTGGCAGACAACAGGGTCAATGGTCCCCAAGTGGATCACCGACGGGCGCGGACAAATGGCCCGCGCTTCGGGGACTTCTGTCCCTAGCCCTGGCCACGATGGGCTGGTCGGATCAAAGGCATCCGTTTCCATCGATTAGGAGGCATCAA", "GTACATGTCCAGAGCGAGCCTCAGCTTCTGCGCAGCGACGGAAACTGCCACACTCAAAGCCTACTGGGCGCACGTGTGGCAACGAGTCGATCCACACGAAATGCCGCCGTTGGGCCGCGGACTAGCCGAATTTTCCGGGTGGTGACACAGCCCACATTTGGCATGGGACTTTCGGCCCTGTCCGCGTCCGTGTCGGCCAGACAAGCTTTGGGCATTGGCCACAATCGGGCCACAATCGAAAGCCGAGCAG", "GGCAGCTGTCGGCAACTGTAAGCCATTTCTGGGACTTTGCTGTGAAAAGCTGGGCGATGGTTGTGGACCTGGACGAGCCACCCGTGCGATAGGTGAGATTCATTCTCGCCCTGACGGGTTGCGTCTGTCATCGGTCGATAAGGACTAACGGCCCTCAGGTGGGGACCAACGCCCCTGGGAGATAGCGGTCCCCGCCAGTAACGTACCGCTGAACCGACGGGATGTATCCGCCCCAGCGAAGGAGACGGCG", "TCAGCACCATGACCGCCTGGCCACCAATCGCCCGTAACAAGCGGGACGTCCGCGACGACGCGTGCGCTAGCGCCGTGGCGGTGACAACGACCAGATATGGTCCGAGCACGCGGGCGAACCTCGTGTTCTGGCCTCGGCCAGTTGTGTAGAGCTCATCGCTGTCATCGAGCGATATCCGACCACTGATCCAAGTCGGGGGCTCTGGGGACCGAAGTCCCCGGGCTCGGAGCTATCGGACCTCACGATCACC"]
 t = 10
 k = 15
 matrix = greedy_motif_search(Dna, k, t, True)
+print("Greedy search results: ")
 print(matrix)
 print(motifs_matrix_score(matrix))
+
+best_matrix = randomized_motif_search(Dna, k, t)
+N = 100
+for i in range(N):
+    matrix = randomized_motif_search(Dna, k, t)
+    if motifs_matrix_score(matrix) < motifs_matrix_score(best_matrix):
+        best_matrix = matrix
+
+print("Random search results: ")
+print(best_matrix)
+print(motifs_matrix_score(best_matrix))
+
+best_matrix = gibbs_sampler(Dna, k, t, N)
+for i in range(1, 20):
+    matrix = gibbs_sampler(Dna, k, t, N)
+    if motifs_matrix_score(matrix) < motifs_matrix_score(best_matrix):
+        print("replaced")
+        best_matrix = matrix
+
+print("Gibbs Sampler search results: ")
+print(best_matrix)
+print(motifs_matrix_score(best_matrix))
