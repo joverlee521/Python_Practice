@@ -100,3 +100,4 @@ def minimum_skew(genome):
         if array[i] == min_skew:
             positions.append(i)
     return positions
+

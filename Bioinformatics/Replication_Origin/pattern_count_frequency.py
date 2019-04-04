@@ -173,10 +173,10 @@ def pattern_clump_finder(genome, k, L, t):
             kmers.add(last_pattern)
     return kmers
 
-
-text = urllib.request.urlopen("http://bioinformaticsalgorithms.com/data/realdatasets/Rearrangements/E_coli.txt").read()
-k = 9
-L = 500
-t = 3
-pattern_clump = pattern_clump_finder(text, k, L, t)
-print(len(pattern_clump))
+if __name__ == "__main__":
+    text = urllib.request.urlopen("http://bioinformaticsalgorithms.com/data/realdatasets/Rearrangements/E_coli.txt").read()
+    k = 9
+    L = 500
+    t = 3
+    # pattern_clump = pattern_clump_finder(text, k, L, t)
+    # print(len(pattern_clump))
